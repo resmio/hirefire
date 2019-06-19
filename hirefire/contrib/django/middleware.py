@@ -1,12 +1,23 @@
 from __future__ import absolute_import
+
 import os
 import re
 
 from django.conf import settings
 from django.core.exceptions import ImproperlyConfigured
-from django.http import HttpResponse
+from django.http import HttpResponse, JsonResponse
 
-from hirefire.procs import load_procs, dump_procs, HIREFIRE_FOUND
+try:
+    # Django >= 1.10
+    from django.utils.deprecation import MiddlewareMixin
+except ImportError:
+    # Not required for Django <= 1.9, see:
+    # https://docs.djangoproject.com/en/1.10/topics/http/middleware/#upgrading-pre-django-1-10-style-middleware
+    MiddlewareMixin = object
+
+from hirefire.procs import (
+    load_procs, serialize_procs, ProcSerializer, HIREFIRE_FOUND
+)
 
 
 def setting(name, default=None):
@@ -15,6 +26,7 @@ def setting(name, default=None):
 
 TOKEN = setting('HIREFIRE_TOKEN', 'development')
 PROCS = setting('HIREFIRE_PROCS', [])
+USE_CONCURRENCY = setting('HIREFIRE_USE_CONCURRENCY', False)
 
 if not PROCS:
     raise ImproperlyConfigured('The HireFire Django middleware '
@@ -22,7 +34,24 @@ if not PROCS:
                                'in the HIREFIRE_PROCS setting.')
 
 
-class HireFireMiddleware(object):
+class DjangoProcSerializer(ProcSerializer):
+    """
+    Like :class:`ProcSerializer` but ensures close database connections.
+
+    New threads in Django will open a new connection automatically once
+    ``django.db`` is imported but they do not close the connection if a
+    thread is terminated.
+    """
+
+    def __call__(self, args):
+        try:
+            return super(DjangoProcSerializer, self).__call__(args)
+        finally:
+            from django.db import close_old_connections
+            close_old_connections()
+
+
+class HireFireMiddleware(MiddlewareMixin):
     """
     The Django middleware that is hardwired to the URL paths
     HireFire requires. Implements the test response and the
@@ -40,11 +69,14 @@ class HireFireMiddleware(object):
 
     def info(self, request):
         """
-        The heart of the app, returning a JSON ecoded list
-        of proc results.
+        Return JSON response serializing all proc names and quantities.
         """
-        payload = dump_procs(self.loaded_procs)
-        return HttpResponse(payload, content_type='application/json')
+        data = serialize_procs(
+            self.loaded_procs,
+            use_concurrency=USE_CONCURRENCY,
+            serializer_class=DjangoProcSerializer,
+        )
+        return JsonResponse(data=data, safe=False)
 
     def process_request(self, request):
         path = request.path

@@ -1,3 +1,29 @@
+0.8 (2019-03-10)
+----------------
+
+- Make RQ proc counting more efficient and correct (#49)
+- CeleryProc close open channels (#51)
+
+0.7 (2018-12-10)
+----------------
+
+- Make ProcSerializer inherit from object (#47)
+
+0.6 (2018-10-10)
+----------------
+
+- Use concurrent futures to reduce blocking IO (#37)
+- Add a test suite (#41)
+- Fix RabbitMQ connection `TimeoutError` (#42).
+  Acquire and dispose broker connection per request
+
+0.5 (2017-01-20)
+----------------
+
+- Add ``simple_queues`` feature to Celery Proc, to enable optionally
+  skipping one inspect call. (#23)
+- Make the default quantity 0 by the recommendation of the HireFire team.
+
 0.4 (2016-06-04)
 ----------------
 
