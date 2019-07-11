@@ -1,6 +1,9 @@
+-e .
 celery
-hotqueue
-huey
-queues
+redis
 rq
 Django
+pytest
+pytest-django
+coverage
+codecov
